@@ -6,6 +6,7 @@ import { electronApp, optimizer, is } from '@electron-toolkit/utils'
 import icon from '../../resources/icon.png?asset'
 import { handleChat, handleSTT, handleVoiceConvo } from './ai-service.js'
 import { PluginManager } from './plugin-system/plugin-manager.js'
+import { getKey, setKey, deleteKey, getAllKeys, migrateLegacyKeys } from './lib/keyStore.js'
 
 // Initialize plugin manager
 const pluginManager = new PluginManager()
@@ -70,6 +71,27 @@ app.whenReady().then(() => {
 
   // IPC test
   ipcMain.on('ping', () => console.log('pong'))
+
+  // ── Key Management ─────────────────────────────────────────
+  await migrateLegacyKeys()
+
+  ipcMain.handle('key:get', async (_, provider) => {
+    return await getKey(provider)
+  })
+
+  ipcMain.handle('key:set', async (_, provider, value) => {
+    await setKey(provider, value)
+    return true
+  })
+
+  ipcMain.handle('key:delete', async (_, provider) => {
+    await deleteKey(provider)
+    return true
+  })
+
+  ipcMain.handle('key:getAll', async () => {
+    return await getAllKeys()
+  })
 
   // ── State Persistence ──────────────────────────────────────
   const STATE_PATH = path.join(app.getPath('userData'), 'aura-state.json')

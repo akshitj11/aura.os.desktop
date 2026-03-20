@@ -193,10 +193,10 @@ export async function runBrowserAgent({
     // 2. Resolve the model
     let agentModel
     try {
-      agentModel = resolveModel('vision', settings)
+      agentModel = await resolveModel('vision', settings)
     } catch {
       try {
-        agentModel = resolveModel('chat', settings)
+        agentModel = await resolveModel('chat', settings)
       } catch (err) {
         sender.send('aura:browser:agent:done', {
           error: `No model configured. Please assign a model in Settings → Model Routing. (${err.message})`

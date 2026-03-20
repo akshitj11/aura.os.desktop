@@ -59,11 +59,25 @@ export const useSettingsStore = defineStore('settings', () => {
         if (saved.settings.ai.systemPrompt) state.ai.systemPrompt = saved.settings.ai.systemPrompt
       }
     }
+
+    if (window.api.auraKeys) {
+      const encryptedKeys = await window.api.auraKeys.getAll()
+      if (encryptedKeys) {
+        state.ai.keys = { ...state.ai.keys, ...encryptedKeys }
+      }
+    }
   }
 
   function saveState() {
     if (!window.api || !window.api.auraState) return
-    window.api.auraState.save('settings', JSON.parse(JSON.stringify(state)))
+    const stateToSave = JSON.parse(JSON.stringify(state))
+    
+    if (stateToSave.ai && stateToSave.ai.keys) {
+      const { openrouter, google, sarvam, ...rest } = stateToSave.ai.keys
+      stateToSave.ai.keys = rest
+    }
+    
+    window.api.auraState.save('settings', stateToSave)
   }
 
   // Auto-save on any change
@@ -85,9 +99,17 @@ export const useSettingsStore = defineStore('settings', () => {
     }
   }
 
+  async function setApiKey(provider, value) {
+    if (window.api && window.api.auraKeys) {
+      await window.api.auraKeys.set(provider, value)
+      state.ai.keys[provider] = value
+    }
+  }
+
   return {
     state,
     setSetting,
-    loadState
+    loadState,
+    setApiKey
   }
 })

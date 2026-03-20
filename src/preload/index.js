@@ -3,6 +3,12 @@ import { electronAPI } from '@electron-toolkit/preload'
 
 // Custom APIs for renderer
 const api = {
+  auraKeys: {
+    get: (provider) => ipcRenderer.invoke('key:get', provider),
+    set: (provider, value) => ipcRenderer.invoke('key:set', provider, value),
+    delete: (provider) => ipcRenderer.invoke('key:delete', provider),
+    getAll: () => ipcRenderer.invoke('key:getAll')
+  },
   auraState: {
     load: () => ipcRenderer.invoke('state:load'),
     save: (key, value) => ipcRenderer.invoke('state:save', key, value)

@@ -3,6 +3,7 @@ import { createOpenRouter } from '@openrouter/ai-sdk-provider'
 import { createGoogleGenerativeAI } from '@ai-sdk/google'
 import { createOllama } from 'ai-sdk-ollama'
 import { EdgeTTS } from 'edge-tts-universal'
+import { getAllKeys } from './lib/keyStore.js'
 
 // ── Provider factory ──────────────────────────────────────────
 export function createProvider(modelEntry, keys) {
@@ -39,14 +40,16 @@ export function createProvider(modelEntry, keys) {
 }
 
 // ── Resolve model from role ───────────────────────────────────
-export function resolveModel(role, settings) {
+export async function resolveModel(role, settings) {
   const modelId = settings.roles[role]
   if (!modelId) throw new Error(`No model assigned to role "${role}"`)
 
   const entry = settings.models.find((m) => m.id === modelId)
   if (!entry) throw new Error(`Model "${modelId}" not found in registry`)
 
-  return createProvider(entry, settings.keys)
+  const keys = await getAllKeys()
+  const mergedKeys = { ...keys, ollamaBaseURL: settings.keys?.ollamaBaseURL }
+  return createProvider(entry, mergedKeys)
 }
 
 import { auraTools, setChatContext } from './tools.js'
@@ -83,7 +86,7 @@ ${
 // ── Stream chat ───────────────────────────────────────────────
 export async function handleChat({ messages, role = 'chat', settings, sender }) {
   try {
-    const model = resolveModel(role, settings)
+    const model = await resolveModel(role, settings)
     setChatContext({ settings, sender })
 
     const systemPrompt = getSystemPrompt(settings, 'chat')
@@ -135,6 +138,11 @@ export async function handleChat({ messages, role = 'chat', settings, sender }) 
 
 // ── Speech-to-text via Sarvam REST API ────────────────────────
 export async function handleSTT({ audioBase64, sarvamKey, languageCode = 'unknown' }) {
+  if (!sarvamKey) {
+    const keys = await getAllKeys()
+    sarvamKey = keys.sarvam
+  }
+  
   const formData = new FormData()
 
   // Convert base64 to blob
@@ -218,18 +226,19 @@ export async function handleTTS({
 
 export async function handleVoiceConvo({ audioBase64, settings, messages = [], sender }) {
   try {
-    // 1. STT
+    const keys = await getAllKeys()
+    
     sender.send('aura:voice:status', 'transcribing')
     const sttResult = await handleSTT({
       audioBase64,
-      sarvamKey: settings.keys.sarvam
+      sarvamKey: keys.sarvam
     })
     const userText = sttResult.transcript
     sender.send('aura:voice:transcript', userText)
 
     // 2. AI response (streaming with tools support)
     sender.send('aura:voice:status', 'thinking')
-    const model = resolveModel('chat', settings)
+    const model = await resolveModel('chat', settings)
     setChatContext({ settings, sender })
     const systemPrompt = getSystemPrompt(settings, 'voice')
 
@@ -274,7 +283,8 @@ export async function handleVoiceConvo({ audioBase64, settings, messages = [], s
     const aiText = await result.text
     sender.send('aura:voice:aitext', aiText)
 
-    // 3. TTS
+    const keys = await getAllKeys()
+    
     sender.send('aura:voice:status', 'speaking')
 
     // Strip all markdown formatting for TTS
@@ -337,7 +347,7 @@ export async function handleVoiceConvo({ audioBase64, settings, messages = [], s
       }
       ttsResult = await handleTTS({
         text: ttsText,
-        sarvamKey: settings.keys.sarvam,
+        sarvamKey: keys.sarvam,
         languageCode: 'en-IN',
         speaker: settings.tts?.speaker,
         pitch: settings.tts?.pitch,

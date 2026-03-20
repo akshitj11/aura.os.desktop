@@ -1,11 +1,23 @@
 <script setup>
-import { ref } from 'vue'
+import { ref, watch } from 'vue'
 import { useSettingsStore } from '../../stores/settings'
 import { storeToRefs } from 'pinia'
 import { Plus, Trash2, Eye, EyeOff } from 'lucide-vue-next'
 
 const store = useSettingsStore()
 const { state } = storeToRefs(store)
+
+watch(() => state.value.ai.keys.openrouter, (newVal) => {
+  store.setApiKey('openrouter', newVal)
+})
+
+watch(() => state.value.ai.keys.google, (newVal) => {
+  store.setApiKey('google', newVal)
+})
+
+watch(() => state.value.ai.keys.sarvam, (newVal) => {
+  store.setApiKey('sarvam', newVal)
+})
 
 // ── Key visibility toggles ──
 const showKeys = ref({ openrouter: false, google: false, sarvam: false, ollamaBaseURL: false })
