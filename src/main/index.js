@@ -7,6 +7,7 @@ import icon from '../../resources/icon.png?asset'
 import { handleChat, handleSTT, handleVoiceConvo } from './ai-service.js'
 import { PluginManager } from './plugin-system/plugin-manager.js'
 import { getKey, setKey, deleteKey, getAllKeys, migrateLegacyKeys } from './lib/keyStore.js'
+import { IPC_CHANNELS, validatePayload } from '../shared/ipc-types.js'
 
 // Initialize plugin manager
 const pluginManager = new PluginManager()
@@ -75,28 +76,37 @@ app.whenReady().then(() => {
   // ── Key Management ─────────────────────────────────────────
   await migrateLegacyKeys()
 
-  ipcMain.handle('key:get', async (_, provider) => {
+  ipcMain.handle(IPC_CHANNELS.KEY_GET, async (_, provider) => {
+    if (!validatePayload(IPC_CHANNELS.KEY_GET, provider)) {
+      throw new Error('Invalid payload for key:get')
+    }
     return await getKey(provider)
   })
 
-  ipcMain.handle('key:set', async (_, provider, value) => {
+  ipcMain.handle(IPC_CHANNELS.KEY_SET, async (_, provider, value) => {
+    if (!validatePayload(IPC_CHANNELS.KEY_SET, provider, value)) {
+      throw new Error('Invalid payload for key:set')
+    }
     await setKey(provider, value)
     return true
   })
 
-  ipcMain.handle('key:delete', async (_, provider) => {
+  ipcMain.handle(IPC_CHANNELS.KEY_DELETE, async (_, provider) => {
+    if (!validatePayload(IPC_CHANNELS.KEY_DELETE, provider)) {
+      throw new Error('Invalid payload for key:delete')
+    }
     await deleteKey(provider)
     return true
   })
 
-  ipcMain.handle('key:getAll', async () => {
+  ipcMain.handle(IPC_CHANNELS.KEY_GET_ALL, async () => {
     return await getAllKeys()
   })
 
   // ── State Persistence ──────────────────────────────────────
   const STATE_PATH = path.join(app.getPath('userData'), 'aura-state.json')
 
-  ipcMain.handle('state:load', async () => {
+  ipcMain.handle(IPC_CHANNELS.STATE_LOAD, async () => {
     try {
       const data = await fs.readFile(STATE_PATH, 'utf-8')
       return JSON.parse(data)
@@ -105,7 +115,10 @@ app.whenReady().then(() => {
     }
   })
 
-  ipcMain.handle('state:save', async (_, key, value) => {
+  ipcMain.handle(IPC_CHANNELS.STATE_SAVE, async (_, key, value) => {
+    if (!validatePayload(IPC_CHANNELS.STATE_SAVE, { key, value })) {
+      throw new Error('Invalid payload for state:save')
+    }
     try {
       let current = {}
       try {
@@ -125,7 +138,10 @@ app.whenReady().then(() => {
   })
 
   // ── AI Chat ───────────────────────────────────────────────
-  ipcMain.handle('aura:chat', async (event, payload) => {
+  ipcMain.handle(IPC_CHANNELS.AURA_CHAT, async (event, payload) => {
+    if (!validatePayload(IPC_CHANNELS.AURA_CHAT, payload)) {
+      throw new Error('Invalid payload for aura:chat')
+    }
     await handleChat({
       messages: payload.messages,
       role: payload.role || 'chat',
@@ -135,7 +151,10 @@ app.whenReady().then(() => {
   })
 
   // ── Speech-to-Text ────────────────────────────────────────
-  ipcMain.handle('aura:stt', async (_, payload) => {
+  ipcMain.handle(IPC_CHANNELS.AURA_STT, async (_, payload) => {
+    if (!validatePayload(IPC_CHANNELS.AURA_STT, payload)) {
+      throw new Error('Invalid payload for aura:stt')
+    }
     return await handleSTT({
       audioBase64: payload.audioBase64,
       sarvamKey: payload.sarvamKey,
@@ -144,7 +163,10 @@ app.whenReady().then(() => {
   })
 
   // ── Edge TTS ──────────────────────────────────────────────
-  ipcMain.handle('aura:edge:tts', async (_, payload) => {
+  ipcMain.handle(IPC_CHANNELS.AURA_EDGE_TTS, async (_, payload) => {
+    if (!validatePayload(IPC_CHANNELS.AURA_EDGE_TTS, payload)) {
+      throw new Error('Invalid payload for aura:edge:tts')
+    }
     const { handleEdgeTTS } = await import('./ai-service.js')
     return await handleEdgeTTS({
       text: payload.text,
@@ -153,7 +175,10 @@ app.whenReady().then(() => {
   })
 
   // ── Sarvam TTS ────────────────────────────────────────────
-  ipcMain.handle('aura:sarvam:tts', async (_, payload) => {
+  ipcMain.handle(IPC_CHANNELS.AURA_SARVAM_TTS, async (_, payload) => {
+    if (!validatePayload(IPC_CHANNELS.AURA_SARVAM_TTS, payload)) {
+      throw new Error('Invalid payload for aura:sarvam:tts')
+    }
     const { handleTTS } = await import('./ai-service.js')
     return await handleTTS({
       text: payload.text,
@@ -164,7 +189,10 @@ app.whenReady().then(() => {
   })
 
   // ── Voice-to-Voice Conversation ───────────────────────────
-  ipcMain.handle('aura:voice:convo', async (event, payload) => {
+  ipcMain.handle(IPC_CHANNELS.AURA_VOICE_CONVO, async (event, payload) => {
+    if (!validatePayload(IPC_CHANNELS.AURA_VOICE_CONVO, payload)) {
+      throw new Error('Invalid payload for aura:voice:convo')
+    }
     await handleVoiceConvo({
       audioBase64: payload.audioBase64,
       settings: payload.settings,
@@ -174,13 +202,19 @@ app.whenReady().then(() => {
   })
 
   // ── Question System ───────────────────────────────────────
-  ipcMain.handle('aura:question:respond', async (_, payload) => {
+  ipcMain.handle(IPC_CHANNELS.AURA_QUESTION_RESPOND, async (_, payload) => {
+    if (!validatePayload(IPC_CHANNELS.AURA_QUESTION_RESPOND, payload)) {
+      throw new Error('Invalid payload for aura:question:respond')
+    }
     const { questionManager } = await import('./question-manager.js')
     questionManager.resolveQuestion(payload.questionId, payload.response)
   })
 
   // ── Browser Agent ─────────────────────────────────────────
-  ipcMain.handle('aura:browser:agent', async (event, payload) => {
+  ipcMain.handle(IPC_CHANNELS.AURA_BROWSER_AGENT, async (event, payload) => {
+    if (!validatePayload(IPC_CHANNELS.AURA_BROWSER_AGENT, payload)) {
+      throw new Error('Invalid payload for aura:browser:agent')
+    }
     const { runBrowserAgent } = await import('./browser-agent.js')
     const { resolveModel } = await import('./ai-service.js')
     return await runBrowserAgent({
@@ -200,7 +234,7 @@ app.whenReady().then(() => {
   })
 
   // Plugin IPC handlers
-  ipcMain.handle('plugin:list', async () => {
+  ipcMain.handle(IPC_CHANNELS.PLUGIN_LIST, async () => {
     return pluginManager.getInstalledPlugins().map((p) => ({
       id: p.id,
       name: p.manifest.name,
@@ -213,7 +247,10 @@ app.whenReady().then(() => {
     }))
   })
 
-  ipcMain.handle('plugin:enable', async (_, pluginId) => {
+  ipcMain.handle(IPC_CHANNELS.PLUGIN_ENABLE, async (_, pluginId) => {
+    if (!validatePayload(IPC_CHANNELS.PLUGIN_ENABLE, pluginId)) {
+      throw new Error('Invalid payload for plugin:enable')
+    }
     try {
       await pluginManager.enablePlugin(pluginId)
       return { success: true }
@@ -222,7 +259,10 @@ app.whenReady().then(() => {
     }
   })
 
-  ipcMain.handle('plugin:disable', async (_, pluginId) => {
+  ipcMain.handle(IPC_CHANNELS.PLUGIN_DISABLE, async (_, pluginId) => {
+    if (!validatePayload(IPC_CHANNELS.PLUGIN_DISABLE, pluginId)) {
+      throw new Error('Invalid payload for plugin:disable')
+    }
     try {
       await pluginManager.disablePlugin(pluginId)
       return { success: true }
@@ -231,7 +271,7 @@ app.whenReady().then(() => {
     }
   })
 
-  ipcMain.handle('plugin:install', async () => {
+  ipcMain.handle(IPC_CHANNELS.PLUGIN_INSTALL, async () => {
     const { dialog } = await import('electron')
     const result = await dialog.showOpenDialog({
       properties: ['openDirectory'],
