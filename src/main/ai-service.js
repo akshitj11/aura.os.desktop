@@ -283,8 +283,6 @@ export async function handleVoiceConvo({ audioBase64, settings, messages = [], s
     const aiText = await result.text
     sender.send('aura:voice:aitext', aiText)
 
-    const keys = await getAllKeys()
-    
     sender.send('aura:voice:status', 'speaking')
 
     // Strip all markdown formatting for TTS
